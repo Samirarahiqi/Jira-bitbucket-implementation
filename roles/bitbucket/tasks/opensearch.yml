@@ -1,0 +1,96 @@
+- name: Create a volume
+  docker_volume:
+    name: OpensearchVolume
+  become: yes
+  become_method: sudo
+
+- name: Create Opensearch container
+  docker_container:
+    name: opensearch
+    image: "opensearchproject/opensearch:latest"
+
+    ports:
+      - "9600:9600"
+      - "9200:9200"
+      - "9300:9300"
+      - "9650:9650"
+
+    env:
+      discovery.type: single-node
+      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/opensearch/jdk/bin:/usr/share/opensearch/bin
+      JAVA_HOME: /usr/share/opensearch/jdk
+      LD_LIBRARY_PATH: :/usr/share/opensearch/plugins/opensearch-knn/knnlib
+    state: started
+    restart_policy: always
+  become: yes
+  become_method: sudo
+
+
+- name: Copy opensearch.yml file to the host
+  copy:
+    src: roles/bitbucket/files/opensearch.yml
+    dest: /tmp/opensearch.yml
+
+- name: Copy opensearch.yml file from host to container
+  command: docker cp /tmp/opensearch.yml opensearch:/usr/share/opensearch/config/opensearch.yml
+  become: yes
+  become_method: sudo
+
+- name: Set owner, group, and mode for opensearch.yml
+  shell: "docker exec opensearch chown opensearch:opensearch /usr/share/opensearch/config/opensearch.yml && docker exec opensearch chmod 660 /usr/share/opensearch/config/opensearch.yml"
+  become: yes
+  become_method: sudo
+
+- name: Copy opensearch security config files to the host
+  copy:
+    src: roles/bitbucket/files/opensearch-security/securityconfig/{{ item }}
+    dest: /tmp/{{ item }}
+  loop:
+    - action_groups.yml
+    - audit.yml
+    - config.yml
+    - internal_users.yml
+    - roles.yml
+    - roles_mapping.yml
+    - tenants.yml
+    - whitelist.yml
+  become: yes
+  become_method: sudo
+
+- name: Create securityconfig  directory in the container
+  command: docker exec -i opensearch mkdir -p /usr/share/opensearch/plugins/opensearch-security/securityconfig
+  become: yes
+  become_method: sudo
+
+
+- name: Copy opensearch security config files from host to container
+  command: docker cp /tmp/{{ item }} opensearch:/usr/share/opensearch/plugins/opensearch-security/securityconfig/{{ item }}
+  loop:
+    - action_groups.yml
+    - audit.yml
+    - config.yml
+    - internal_users.yml
+    - roles.yml
+    - roles_mapping.yml
+    - tenants.yml
+    - whitelist.yml
+  become: yes
+  become_method: sudo
+
+
+- name: Set owner, group, and mode for opensearch security config files
+  ansible.builtin.command:
+    cmd: docker exec -i opensearch chmod 0644 /usr/share/opensearch/plugins/opensearch-security/securityconfig/{{ item }}
+  loop:
+    - action_groups.yml
+    - audit.yml
+    - config.yml
+    - internal_users.yml
+    - roles.yml
+    - roles_mapping.yml
+    - tenants.yml
+    - whitelist.yml
+  become: yes
+  become_method: sudo
+
+

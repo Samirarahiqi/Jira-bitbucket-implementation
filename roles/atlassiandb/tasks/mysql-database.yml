@@ -1,0 +1,82 @@
+---
+# this package is required to use the pip module
+
+- name: Python3 Installation - this package is required to use the pip module
+  apt:
+    name: python3-pip
+    state: present
+  become: yes
+  become_method: sudo
+
+- name: PyMySQL - this is the required pip package
+  pip:
+    name: PyMySQL
+  become: yes
+  become_method: sudo
+
+- name: Create mysql container
+  docker_container:
+    name: jira-mysql
+    image: "mysql"
+    ports:
+      - "3306:3306"
+    env:
+      MYSQL_ROOT_PASSWORD: "{{mysql_root_password_jira}}"
+    state: started
+    restart_policy: always
+  become: yes 
+  become_method: sudo
+
+- name: MySQL user
+  user:
+    comment: MySQL user
+    name: jira
+    group: users
+    uid: 1009 # taken from the mysql Docker image
+    system: yes
+    create_home: no
+  become: yes
+  become_method: sudo
+
+- name: MySQL data directory
+  file:
+    path: "{{mysql_container_volume}}/_data"
+    state: directory
+    owner: systemd-coredump
+    group: users
+    mode: '0755'
+  become: yes
+  become_method: sudo
+
+- name: create a new database
+  mysql_db: 
+    name: jira 
+    login_user: root 
+    login_password: "{{ mysql_root_password_jira }}"  
+    encoding: utf8mb4
+    collation: utf8mb4_bin
+    state: present
+  become: yes
+  become_method: sudo
+
+- name: Copy sample data to database server  
+  copy: 
+    src: roles/atlassiandb/backups/jiradump.sql 
+    dest: /tmp/jiradump.sql
+  become: yes
+  become_method: sudo
+
+- name: Restore dump backup
+  ansible.builtin.command: /bin/sh -c 'cat jiradump.sql | docker exec -i jira-mysql /usr/bin/mysql -u root --password={{mysql_root_password_jira}} jira'
+  become: yes
+  become_method: sudo  
+
+- name: MySQL backup dump directory
+  file:
+    path: "/opt/backup/jiradump-{{ date }}.sql"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: yes
+  become_method: sudo

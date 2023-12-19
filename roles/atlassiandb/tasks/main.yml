@@ -1,0 +1,11 @@
+---
+- name: JIRA | MySQL-DB
+  include: mysql-database.yml
+  tags:
+    - Install and Config
+
+- name: Bitbucket | Postgresql-DB
+  include: postgres-database.yml
+  tags:
+    - Install and config
+

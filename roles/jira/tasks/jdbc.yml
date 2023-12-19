@@ -1,0 +1,12 @@
+---
+#- name: JIRA | Gather JDBC specific variables
+#  include_vars: "{{ item }}"
+#  tags: jdbc-vars
+#  become: yes
+#  become_method: sudo
+
+- name: JIRA | MySQL JDBC connector
+  include: mysql-jdbc.yml
+    #  when: (jira_database_type == 'mysql')
+  tags:
+    - mysql-jdbc

@@ -1,0 +1,94 @@
+---
+
+- name: Create postgres container
+  docker_container:
+    name: bitbucket-postgres
+    image: "postgres"
+    ports:
+      - "5432:5432"
+    network_mode: bridge
+    volumes:
+      - "{{postgresql_container_volume}}/_data:/var/lib/postgresql/data"
+    env:
+      POSTGRES_PASSWORD: "{{ postgres_root_password_bitbucket }}"
+      PGDATA: /var/lib/postgresql/data
+    state: started
+    restart_policy: always
+  become: yes
+  become_method: sudo
+
+- name: Postgres user
+  user:
+    comment: Postgres user
+    name: bitbucket
+    group: users
+    uid: 1003 # taken from the postgres Docker image
+    system: yes
+    create_home: no
+  become: yes
+  become_method: sudo
+
+- name: Postgresql data directory
+  file:
+    path: "{{postgresql_container_volume}}/_data"
+    state: directory
+    owner: systemd-coredump
+    group: users
+    mode: '0755'
+  become: yes
+  become_method: sudo
+
+- name: Create a role in database
+  command: docker exec -it bitbucket-postgres psql -U postgres -c "CREATE ROLE bitbucket WITH LOGIN PASSWORD '{{ postgres_root_password_bitbucket }}' VALID UNTIL 'infinity';"
+  become: yes
+  become_method: sudo
+
+- name: Create a new Database
+  command: docker exec -it bitbucket-postgres psql -U postgres -c "CREATE DATABASE bitbucket WITH ENCODING='UTF8' OWNER=bitbucket CONNECTION LIMIT=-1;"
+  become: yes
+  become_method: sudo
+
+- name: Create Second Database
+  command: docker exec -it bitbucket-postgres psql -U postgres -c "CREATE DATABASE bitbucket2 WITH ENCODING='UTF8' OWNER=bitbucket CONNECTION LIMIT=-1;"
+  become: yes
+  become_method: sudo
+
+- name: add sample data to database  
+  copy: 
+    src: roles/atlassiandb/backups/postgresdump.sql 
+    dest: /tmp/postgresdump.sql
+  become: yes
+  become_method: sudo  
+
+- name: Copy a file into the container
+  community.docker.docker_container_copy_into:
+    container: bitbucket-postgres
+    path: /tmp/postgresdump.sql
+    container_path: /tmp/postgresdump.sql    
+  become: yes
+  become_method: sudo
+   
+- name: Restore dump backup
+  ansible.builtin.command: /bin/sh -c 'cat /tmp/postgresdump.sql | docker exec -i bitbucket-postgres psql -U bitbucket bitbucket2'
+  become: yes
+  become_method: sudo
+
+- name: DROP First bitbucket Database
+  command: docker exec -it bitbucket-postgres psql -U postgres -c "DROP DATABASE bitbucket;"
+  become: yes
+  become_method: sudo
+
+- name:  Rename bitbucket2 to bitbucket
+  command: docker exec -it bitbucket-postgres psql -U postgres -c "ALTER DATABASE bitbucket2 RENAME TO bitbucket;"
+  become: yes
+  become_method: sudo
+
+- name: Postgres backup dump directory
+  file:
+    path: "/opt/backup/postgres-backup-{{ date }}.sql"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: yes
+  become_method: sudo

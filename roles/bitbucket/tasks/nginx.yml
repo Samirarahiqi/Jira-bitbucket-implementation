@@ -1,0 +1,37 @@
+--- 
+- name: Create a volume
+  docker_volume:
+    name: Nginx
+  become: yes
+  become_method: sudo
+
+- name: Create Nginx container
+  docker_container:
+    name: nginx-proxy
+    image: "nginx"
+
+    ports:
+      - "80:80"
+    state: started
+    restart_policy: always
+  become: yes
+  become_method: sudo
+
+- name: Copy Nginx config file to a temporary location on the control machine
+  copy:
+    src: roles/bitbucket/files/test-bitbucket-ansible.conf
+    dest: /tmp/test-bitbucket-ansible.conf
+
+- name: Copy bitbucket1muc.conf into the container
+  command: docker cp /tmp/test-bitbucket-ansible.conf nginx-proxy:/etc/nginx/conf.d/test-bitbucket-ansible.conf
+  become: yes
+  become_method: sudo
+
+- name: Set owner, group, and mode for Nginx config files
+  ansible.builtin.command:
+    cmd: docker exec -i nginx-proxy chmod 0644 /etc/nginx/conf.d/test-bitbucket-ansible.conf
+  become: yes
+  become_method: sudo
+
+
+

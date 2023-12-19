@@ -1,0 +1,68 @@
+---
+
+- name: JIRA | Ensure JIRA group
+  group:
+    name: "{{ jira_group }}"
+  become: yes
+  become_method: sudo
+
+- name: JIRA | Ensure JIRA user
+  user:
+    name: "{{ jira_user }}"
+    group: "{{ jira_group }}"
+    shell: /bin/bash
+  become: yes
+  become_method: sudo
+
+- name: Jira data directory
+  file:
+    path: /data/jira
+    state: directory
+    owner: jira
+    mode: '0700'
+  become: yes
+  become_method: sudo
+
+- name: Create a volume
+  docker_volume:
+    name: newjiraVolume
+  become: yes
+  become_method: sudo
+
+- name: Create jira container
+  docker_container:
+    name: jira
+    image: "atlassian/jira-software"
+    volumes:
+      - /var/lib/docker/volumes/JIRA_VOLUME/_data:/var/atlassian/application-data/jira
+
+    ports:
+      - "80:8080"
+    env:
+      PATH: /opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      LANG: en_US.UTF-8
+      LANGUAGE: en_US:en
+      LC_ALL: en_US.UTF-8
+      JAVA_VERSION: jdk-11.0.15+10
+      JAVA_HOME: /opt/java/openjdk
+      APP_NAME: jira
+      RUN_USER: jira
+      RUN_GROUP: jira
+      RUN_UID: "2001"
+      RUN_GID: "2001"
+      JIRA_HOME: /var/atlassian/application-data/jira
+      JIRA_INSTALL_DIR: /opt/atlassian/jira      
+    state: started
+    restart_policy: always
+  become: yes
+  become_method: sudo
+
+- name: Configure JDBC connector in Jira Docker container
+  blockinfile:
+    path: /var/lib/docker/volumes/JIRA_VOLUME/_data/dbconfig.xml
+    block: |
+      <url>jdbc:mysql://address=(protocol=tcp)(host=test-atlassiandb-ansible.example.com)(port=3306)/jira?sessionVariables=default_storage_engine=InnoDB</url>
+  become: yes
+  become_method: sudo
+
+

@@ -1,0 +1,25 @@
+- hosts:
+    - atlassian-database-server
+  roles:
+    - atlassiandb
+
+- hosts:
+    - jira-server
+  roles:
+    - jira
+
+- hosts:
+    - bitbucket-server
+  roles:
+    - bitbucket
+
+
+
+
+
+
+
+
+
+
+

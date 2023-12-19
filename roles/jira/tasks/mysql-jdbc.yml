@@ -1,0 +1,62 @@
+- name: JIRA | MySQL Tools repo key
+  apt_key:
+    url: "http://repo.mysql.com/RPM-GPG-KEY-mysql-2023"
+    state: present
+  become: yes
+  become_method: sudo
+
+- name: JIRA | MySQL Tools APT repository
+  apt_repository:
+    repo: "{{ jira_mysql_repo }}"
+    update_cache: yes
+    filename: mysql
+    state: present
+  when: ( ansible_os_family == "Ubuntu" )
+  become: yes
+  become_method: sudo
+
+- name: JIRA | MySQL Connector
+  action: >
+   {{ ansible_pkg_mgr }} name=mysql-connector-java-8.0.30 state=present
+  become: yes
+  become_method: sudo
+
+- name: Copy a file into the container
+  community.docker.docker_container_copy_into:
+    container: jira
+    path: "/opt/atlassian/jira/lib/mysql-connector-java-*.jar"
+    container_path: "/opt/atlassian/jira/lib"
+  become: yes
+  become_method: sudo
+
+- name: JIRA | Find JIRA installed MySQL connectors
+  find:
+    paths: "/opt/atlassian/jira/lib"
+    patterns: "mysql-connector-java-*.jar"
+    depth: "1"
+  register: jira_mysql_installed_list
+  become: yes
+  become_method: sudo
+
+- name: JIRA | Find available MySQL connectors
+  find:
+    paths: '/usr/share/java'
+    patterns: "mysql-connector-java-*.jar"
+    depth: "1"
+  register: jira_mysql_available_list
+  become: yes
+  become_method: sudo
+
+- name: JIRA | MySQL Connector placement in JIRA installation
+  command: "/bin/cp {{ jira_mysql_available_list.files[0].path }} {{ jira_installation_dir }}/lib"
+  when: ( jira_mysql_installed_list.matched == "0" )
+  become: yes
+  become_method: sudo
+
+- name: JIRA | Install MySQL connector to JIRA installation
+  file:
+    dest: "{{ jira_installation_dir }}/lib"
+    owner: "{{ jira_user }}"
+    group: "{{ jira_group }}"
+    recurse: yes
+    mode: 0755

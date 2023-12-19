@@ -1,0 +1,5 @@
+---
+- include: bitbucket-install.yml
+- include: opensearch.yml
+- include: nginx.yml
+
